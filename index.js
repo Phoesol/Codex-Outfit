@@ -86,6 +86,7 @@
         if (!Array.isArray(d.activeIds)) d.activeIds = [];
         if (!Array.isArray(d.presets)) d.presets = [];
         if (!d.chars) d.chars = {};
+        if (!d.virtualOutfits) d.virtualOutfits = {};
         if (!d.charNames) d.charNames = [];
         if (!d.apiVision) d.apiVision = def().apiVision;
         else { var dv = def().apiVision; for (var vk in dv) { if (d.apiVision[vk] === undefined) d.apiVision[vk] = dv[vk]; } if (d.apiVision.batchSize && !d.apiVision.concurrency) { d.apiVision.concurrency = Math.min(d.apiVision.batchSize, 5); } delete d.apiVision.batchSize;
@@ -101,6 +102,7 @@
             outfits: [],
             categories: [],
             activeIds: [],
+            virtualOutfits: {},  // runtime-only virtual outfits from world book
             presets: [],
             activePresetId: null,
             // Char 数据（独立存储，不受预设影响）
@@ -177,6 +179,7 @@
     // ── Char数据访问辅助 ────────────────────────────────────────
     function getCharData(d, charName) {
         if (!d.chars) d.chars = {};
+        if (!d.virtualOutfits) d.virtualOutfits = {};
         if (!d.chars[charName]) d.chars[charName] = { outfits: [], categories: [], activeIds: [] };
         return d.chars[charName];
     }
@@ -215,6 +218,7 @@
     function getById(d, id) {
         for (var i = 0; i < d.outfits.length; i++) { if (d.outfits[i].id === id) return d.outfits[i]; }
         if (d.chars) { for (var cn in d.chars) { var co = d.chars[cn].outfits || []; for (var j = 0; j < co.length; j++) { if (co[j].id === id) return co[j]; } } }
+        if (d.virtualOutfits && d.virtualOutfits[id]) return d.virtualOutfits[id];
         return null;
     }
 
@@ -248,6 +252,7 @@
         });
         d.outfits = userOutfits;
         if (!d.chars) d.chars = {};
+        if (!d.virtualOutfits) d.virtualOutfits = {};
         if (!d.charNames) d.charNames = [];
         for (var cn in moved) {
             if (!d.chars[cn]) d.chars[cn] = { outfits: [], categories: [], activeIds: [] };
@@ -1373,7 +1378,7 @@
                 // Activate only this outfit
                 dd.activeIds = [];
                 if (dd.chars) for (var cn in dd.chars) dd.chars[cn].activeIds = [];
-                if (picked.isVirtual) { var realId = genId(); picked.id = realId; if (dd.currentView === 'char' && dd.currentChar) getCharData(dd, dd.currentChar).outfits.push(picked); else dd.outfits.push(picked); } dd.activeIds = [picked.id];
+                if (picked.isVirtual) { var realId = genId(); picked.id = realId; dd.virtualOutfits[realId] = picked; } dd.activeIds = [picked.id];
                 var confirmPick = function() { save(dd); renderGrid(); renderBottomStatus(); updateBtn(); toast('已换上「' + picked.name + '」(' + scene + ')'); };
                 if (picked.isVirtual) {
                     var modal2 = document.createElement('div'); modal2.className = 'om-modal';
@@ -1767,7 +1772,7 @@
         function doRoll() { var ss = sheet.querySelector('#om-roll-style').value; var sn = sheet.querySelector('#om-roll-season').value; var sc = sheet.querySelector('#om-roll-scene').value; var sm = sheet.querySelector('#om-roll-mode').value; var useWBModern = sheet.querySelector('#om-roll-wb-modern') ? sheet.querySelector('#om-roll-wb-modern').checked : false; var useWBLingerie = sheet.querySelector('#om-roll-wb-lingerie') ? sheet.querySelector('#om-roll-wb-lingerie').checked : false; var useWBOnly = sheet.querySelector('#om-roll-wb-only') ? sheet.querySelector('#om-roll-wb-only').checked : false; var pool = useWBOnly ? [] : allOutfits.slice(); if (useWBModern) { (worldBookStylesModern || []).forEach(function(ws, wi) { pool.push({ id: 'wb_modern_' + wi, name: ws.name, category: ws.scene, type: 'outfit', style: ws.style, season: ws.season, sceneTag: ws.scene, description: ws.desc, imageData: null, isVirtual: true, source: '💎uu现代' }); }); } if (useWBLingerie) { (worldBookStylesLingerie || []).forEach(function(ws, wi) { pool.push({ id: 'wb_lingerie_' + wi, name: ws.name, category: ws.scene, type: 'outfit', style: ws.style, season: ws.season, sceneTag: ws.scene, description: ws.desc, imageData: null, isVirtual: true, source: '🦋uu内衣' }); }); } var f = pool.filter(function (o) { if (ss && (!o.style || o.style.trim() !== ss)) return false; if (sn && (!o.season || o.season.trim() !== sn)) return false; if (sc && (!o.sceneTag || o.sceneTag.trim() !== sc)) return false; return true; }); if (f.length === 0) { toast('没有匹配的穿搭', true); return; } var r = { outfits: [], items: [] }; var fo = f.filter(function (o) { return !o.type || o.type === 'outfit'; }); var fi = f.filter(function (o) { return o.type === 'item'; }); if (sm === 'outfit') { if (fo.length === 0) { toast('没有匹配的套装', true); return; } r.outfits = [fo[Math.floor(Math.random() * fo.length)]]; } else if (sm === 'items') { var g = {}; fi.forEach(function (it) { var c = it.category || '其他'; if (!g[c]) g[c] = []; g[c].push(it); }); for (var k in g) r.items.push(g[k][Math.floor(Math.random() * g[k].length)]); } else { if (fo.length > 0) r.outfits = [fo[Math.floor(Math.random() * fo.length)]]; var g2 = {}; fi.forEach(function (it) { var c2 = it.category || '其他'; if (!g2[c2]) g2[c2] = []; g2[c2].push(it); }); for (var k2 in g2) r.items.push(g2[k2][Math.floor(Math.random() * g2[k2].length)]); } lastResult = r; var h = '<div>'; if (r.outfits.length > 0) { h += '<div style="font-weight:600;margin-bottom:8px">套装</div>'; r.outfits.forEach(function (o) { h += '<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;padding:8px;background:rgba(127,127,127,.06);border-radius:8px">'; if (o.imageData) h += '<img src="' + o.imageData + '" style="width:80px;height:106px;object-fit:cover;border-radius:6px;flex-shrink:0" />'; h += '<div style="min-width:0"><div style="font-weight:600;margin-bottom:2px">' + esc(o.name) + '</div>'; if (o.style) h += '<div style="font-size:.8em;opacity:.7">风格：' + esc(o.style) + '</div>'; if (o.season) h += '<div style="font-size:.8em;opacity:.7">季节：' + esc(o.season) + '</div>'; if (o.sceneTag) h += '<div style="font-size:.8em;opacity:.7">场景：' + esc(o.sceneTag) + '</div>'; if (o.description) h += '<div style="font-size:.82em;opacity:.85;margin-top:6px;line-height:1.6;padding:8px;background:rgba(127,127,127,.05);border-radius:6px;white-space:pre-wrap">' + esc(o.description) + '</div>'; h += '</div></div>'; }); } if (r.items.length > 0) { h += '<div style="font-weight:600;margin:8px 0">单品</div>'; r.items.forEach(function (o) { h += '<div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;padding:6px 8px;background:rgba(127,127,127,.04);border-radius:6px">'; if (o.imageData) h += '<img src="' + o.imageData + '" style="width:60px;height:80px;object-fit:cover;border-radius:4px;flex-shrink:0" />'; h += '<div><span style="font-size:.75em;opacity:.5">' + esc(o.category || '其他') + '</span><br>' + esc(o.name) + esc(o.name) + '</div>'; if (o.description) h += '<div style="font-size:.75em;opacity:.7;margin-top:2px;line-height:1.4">' + esc(o.description) + '</div>'; h += '</div></div>'; }); } h += '</div>'; sheet.querySelector('#om-roll-result').innerHTML = h; sheet.querySelector('#om-roll-result-area').style.display = ''; }
         sheet.querySelector('#om-roll-go').addEventListener('click', doRoll);
         sheet.querySelector('#om-roll-cancel').addEventListener('click', function () { closeSheet(sheet); });
-        sheet.querySelector('#om-roll-apply').addEventListener('click', function () { if (!lastResult) return; var dd = load(); dd.activeIds = []; if (dd.chars) for (var cn in dd.chars) dd.chars[cn].activeIds = []; var ids = []; lastResult.outfits.forEach(function (o) { if (o.isVirtual) { var dd3 = load(); var no = { id: genId(), name: o.name, category: o.category || '', type: 'outfit', style: o.style || '', season: o.season || '', sceneTag: o.sceneTag || '', description: o.description || '', imageData: null, createdAt: Date.now(), isVirtual: true }; if (dd3.currentView === 'char' && dd3.currentChar) getCharData(dd3, dd3.currentChar).outfits.push(no); else dd3.outfits.push(no); save(dd3); ids.push(no.id); } else { ids.push(o.id); } }); lastResult.items.forEach(function (o) { ids.push(o.id); }); if (dd.currentView === 'char' && dd.currentChar) getCharData(dd, dd.currentChar).activeIds = ids; else dd.activeIds = ids; save(dd); closeSheet(sheet); toast('已应用！(' + ids.length + '件)'); renderGrid(); renderBottomStatus(); updateBtn(); });
+        sheet.querySelector('#om-roll-apply').addEventListener('click', function () { if (!lastResult) return; var dd = load(); dd.activeIds = []; if (dd.chars) for (var cn in dd.chars) dd.chars[cn].activeIds = []; var ids = []; lastResult.outfits.forEach(function (o) { if (o.isVirtual) { var no = { id: genId(), name: o.name, category: o.category || '', type: 'outfit', style: o.style || '', season: o.season || '', sceneTag: o.sceneTag || '', description: o.description || '', imageData: null, createdAt: Date.now(), isVirtual: true }; dd.virtualOutfits[no.id] = no; ids.push(no.id); } else { ids.push(o.id); } }); lastResult.items.forEach(function (o) { ids.push(o.id); }); if (dd.currentView === 'char' && dd.currentChar) getCharData(dd, dd.currentChar).activeIds = ids; else dd.activeIds = ids; save(dd); closeSheet(sheet); toast('已应用！(' + ids.length + '件)'); renderGrid(); renderBottomStatus(); updateBtn(); });
         doRoll();
     }
 
@@ -3086,7 +3091,7 @@
             if (allWB.length > 0) {
                 var pick = allWB[Math.floor(Math.random() * allWB.length)];
                 var o = { id: genId(), name: pick.name, category: pick.scene || '', type: 'outfit', style: pick.style || '', season: pick.season || '', sceneTag: pick.scene || '', description: pick.desc || '', imageData: null, isVirtual: true, createdAt: Date.now() };
-                d.outfits.push(o);
+                d.virtualOutfits[o.id] = o;
                 d.activeIds = [o.id];
                 save(d);
                 if (typeof toast !== 'undefined') toast('今日穿搭：「' + pick.name + '」（' + (pick.style || '') + '·' + (pick.scene || '') + '）', false, 4000);
