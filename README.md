@@ -118,11 +118,7 @@ User 和不同角色各有独立衣柜，各自激活各自的穿搭，互不干
 
 ---
 
-## 🙏 致谢
+## 🙏 鸣谢
 
-- 克洛宜 —— 一遍遍帮我改代码的 AI 伙伴
-- 毛毛雨老师 —— 一键换图 UI 灵感
-
----
-
-**作者：温水**
+- 💎uu现代v2.1 / 🦋uu内衣v1.0 世界书来自 Discord 旅程社区的 **离谱喵✧˖°** 老师
+- 插件二改自 [wenshui012/Outfit-Manager](https://github.com/wenshui012/Outfit-Manager)
