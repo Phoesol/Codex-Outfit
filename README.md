@@ -9,14 +9,13 @@
 
 ## 📸 预览
 
-> 🔜 截图即将更新（v21.2.0）
-
-<!-- 
 ![主面板](screenshots/main-panel.png)
+
 ![批量添加](screenshots/batch-add.png)
-![世界书联动](screenshots/world-book.png)
+
 ![场景切换](screenshots/scene-switch.png)
--->
+
+![设置](screenshots/settings.png)
 
 ---
 
