@@ -50,7 +50,7 @@
             if (!db) { dataCache = ensureDefaults(loadFromLS()); cb(dataCache); return; }
             var tx = db.transaction(STORE_NAME, 'readonly');
             var req = tx.objectStore(STORE_NAME).get(DATA_KEY);
-            req.onsuccess = function () { dataCache = ensureDefaults(req.result || loadFromLS()); cb(dataCache); };
+            req.onsuccess = function () { var result = req.result; if (!result || !result.outfits || result.outfits.length === 0) { var backup = loadFromLS(); if (backup && backup.outfits && backup.outfits.length > 0) { result = backup; saveToDB(result); } } dataCache = ensureDefaults(result || loadFromLS()); cb(dataCache); };
             req.onerror = function () { dataCache = ensureDefaults(loadFromLS()); cb(dataCache); };
         });
     }
@@ -72,10 +72,10 @@
         return dataCache;
     }
 
-    function save(d) { dataCache = d; saveToDB(d); }
+    function save(d) { dataCache = d; saveToDB(d); try { localStorage.setItem('outfit_mgr_v4_backup', JSON.stringify(d)); } catch (e) {} }
 
     function loadFromLS() {
-        try { var r = localStorage.getItem('outfit_mgr_v4'); return r ? JSON.parse(r) : null; } catch (e) { return null; }
+        try { var r = localStorage.getItem('outfit_mgr_v4'); if (r) return JSON.parse(r); var b = localStorage.getItem('outfit_mgr_v4_backup'); if (b) return JSON.parse(b); return null; } catch (e) { return null; }
     }
 
     function ensureDefaults(d) {
