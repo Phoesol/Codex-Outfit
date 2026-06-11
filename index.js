@@ -13,6 +13,8 @@
     var DB_VERSION = 1;
     var STORE_NAME = 'data';
     var DATA_KEY = 'main';
+    var SHARED_SETTINGS_KEY = 'Outfit-Manager';
+    var SHARED_DATA_KEY = 'wardrobeData';
     var MAX_IMG_WIDTH = 800;
     var IMG_QUALITY = 0.75;
     var FAB_ID = 'om-fab-main';
@@ -32,6 +34,52 @@
         return document.body;
     }
 
+    // ── SillyTavern shared settings storage ─────────────────────
+    // This lives in the server-side settings file, so different browsers
+    // connected to the same SillyTavern instance see the same wardrobe.
+    function getSTContextSafe() {
+        try {
+            if (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) return SillyTavern.getContext();
+        } catch (e) {}
+        return null;
+    }
+
+    function getSharedSettingsRoot() {
+        try {
+            var ctx = getSTContextSafe();
+            var settings = (ctx && ctx.extensionSettings) ||
+                (typeof SillyTavern !== 'undefined' && SillyTavern.extension_settings);
+            if (!settings) return null;
+            if (!settings[SHARED_SETTINGS_KEY]) settings[SHARED_SETTINGS_KEY] = {};
+            return settings[SHARED_SETTINGS_KEY];
+        } catch (e) { return null; }
+    }
+
+    function loadFromSharedSettings() {
+        var root = getSharedSettingsRoot();
+        return root && root[SHARED_DATA_KEY] ? root[SHARED_DATA_KEY] : null;
+    }
+
+    function saveToSharedSettings(d) {
+        var root = getSharedSettingsRoot();
+        if (!root) return false;
+        root[SHARED_DATA_KEY] = d;
+        try {
+            var ctx = getSTContextSafe();
+            if (ctx && ctx.saveSettingsDebounced) ctx.saveSettingsDebounced();
+        } catch (e) {}
+        return true;
+    }
+
+    function hasWardrobeData(d) {
+        return !!(d && (
+            (Array.isArray(d.outfits) && d.outfits.length > 0) ||
+            (Array.isArray(d.categories) && d.categories.length > 0) ||
+            (d.chars && Object.keys(d.chars).length > 0) ||
+            (Array.isArray(d.presets) && d.presets.length > 0)
+        ));
+    }
+
     // ── IndexedDB ─────────────────────────────────────────────
     function openDB(cb) {
         if (dbInstance) { cb(dbInstance); return; }
@@ -46,17 +94,38 @@
 
     function loadFromDB(cb) {
         if (dataCache) { cb(dataCache); return; }
+        var shared = loadFromSharedSettings();
+        if (shared) { dataCache = ensureDefaults(shared); cb(dataCache); return; }
         openDB(function (db) {
-            if (!db) { dataCache = ensureDefaults(loadFromLS()); cb(dataCache); return; }
+            if (!db) {
+                dataCache = ensureDefaults(loadFromLS());
+                if (hasWardrobeData(dataCache)) saveToSharedSettings(dataCache);
+                cb(dataCache);
+                return;
+            }
             var tx = db.transaction(STORE_NAME, 'readonly');
             var req = tx.objectStore(STORE_NAME).get(DATA_KEY);
-            req.onsuccess = function () { var result = req.result; if (!result || !result.outfits || result.outfits.length === 0) { var backup = loadFromLS(); if (backup && backup.outfits && backup.outfits.length > 0) { result = backup; saveToDB(result); } } dataCache = ensureDefaults(result || loadFromLS()); cb(dataCache); };
-            req.onerror = function () { dataCache = ensureDefaults(loadFromLS()); cb(dataCache); };
+            req.onsuccess = function () {
+                var result = req.result;
+                if (!hasWardrobeData(result)) {
+                    var backup = loadFromLS();
+                    if (hasWardrobeData(backup)) { result = backup; saveToDB(result); }
+                }
+                dataCache = ensureDefaults(result || loadFromLS());
+                if (hasWardrobeData(dataCache)) saveToSharedSettings(dataCache);
+                cb(dataCache);
+            };
+            req.onerror = function () {
+                dataCache = ensureDefaults(loadFromLS());
+                if (hasWardrobeData(dataCache)) saveToSharedSettings(dataCache);
+                cb(dataCache);
+            };
         });
     }
 
     function saveToDB(d, cb) {
         dataCache = d;
+        saveToSharedSettings(d);
         openDB(function (db) {
             if (!db) { try { localStorage.setItem('outfit_mgr_v4', JSON.stringify(d)); } catch (e) {} if (cb) cb(); return; }
             var tx = db.transaction(STORE_NAME, 'readwrite');
@@ -68,7 +137,7 @@
 
     function load() {
         if (dataCache) return dataCache;
-        dataCache = ensureDefaults(loadFromLS());
+        dataCache = ensureDefaults(loadFromSharedSettings() || loadFromLS());
         return dataCache;
     }
 
@@ -2093,7 +2162,7 @@
 
             '<div class="om-divider"></div>',
             '<div class="om-sec-title">数据</div>',
-            '<div class="om-storage-info">' + d.outfits.length + ' 套穿搭 / ' + imgCount + ' 张图片 / ' + (d.presets ? d.presets.length : 0) + ' 个预设 | IndexedDB 存储</div>',
+            '<div class="om-storage-info">' + d.outfits.length + ' 套穿搭 / ' + imgCount + ' 张图片 / ' + (d.presets ? d.presets.length : 0) + ' 个预设 | 酒馆共享存储</div>',
             '<div class="om-btn-row" style="margin-top:8px">',
             '<button class="om-btn om-btn-outline" id="om-exp"><i class="fa-solid fa-download"></i> 导出</button>',
             '<button class="om-btn om-btn-outline" id="om-imp"><i class="fa-solid fa-upload"></i> 导入</button>',
