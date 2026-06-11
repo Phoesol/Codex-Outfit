@@ -1,4 +1,4 @@
-﻿// 穿搭管理扩展 v19 - SillyTavern Extension
+// 穿搭管理扩展 v19 - SillyTavern Extension
 // ★ v19 改进：
 //   1. 合并注入：User+Char穿搭拼成一条文本后统一注入，避免多条system被忽略
 //   2. 强化模板：默认模板加入角色扮演指令格式，Gemini/DeepSeek/Claude均能识别
@@ -7,13 +7,13 @@
 
 (function () {
 
-    var SCRIPT_NAME = '穿搭管理';
+    var SCRIPT_NAME = 'Codex-Outfit';
     var BTN_ID = 'outfit-mgr-ext-btn-v4';
-    var DB_NAME = 'outfit_mgr_db';
+    var DB_NAME = 'codex_outfit_db';
     var DB_VERSION = 1;
     var STORE_NAME = 'data';
     var DATA_KEY = 'main';
-    var SHARED_SETTINGS_KEY = 'Outfit-Manager';
+    var SHARED_SETTINGS_KEY = 'Codex-Outfit';
     var SHARED_DATA_KEY = 'wardrobeData';
     var MAX_IMG_WIDTH = 800;
     var IMG_QUALITY = 0.75;
@@ -21,7 +21,7 @@
 
     var dbInstance = null;
     var dataCache = null;
-    var darkMode = false; // 默认浅色
+    var darkMode = true; // 默认暗色
     // 获取弹层容器（overlay内部的absolute层，不受overflow:hidden影响因为overlay本身没有overflow）
     function getPopupLayer() {
         // 首选overlay内的slot
@@ -157,9 +157,8 @@
         if (!d.chars) d.chars = {};
         if (!d.virtualOutfits) d.virtualOutfits = {};
         if (!d.charNames) d.charNames = [];
-        if (!d.apiVision) d.apiVision = def().apiVision;
-        else { var dv = def().apiVision; for (var vk in dv) { if (d.apiVision[vk] === undefined) d.apiVision[vk] = dv[vk]; } if (d.apiVision.batchSize && !d.apiVision.concurrency) { d.apiVision.concurrency = Math.min(d.apiVision.batchSize, 5); } delete d.apiVision.batchSize;
-        if (d.useMainApi !== false) { d.useMainApi = true; autoDetectApiConfig(d); } }
+        delete d.apiVision;
+        delete d.useMainApi;
         // v17→v18迁移：把带owner的穿搭移入chars
         migrateV17(d);
         return d;
@@ -200,24 +199,8 @@
 [单品衣柜]\
 {{items}}\
 （以上为当前穿搭和可用单品库存，禁止编造以上之外的服装。）',
-            debug: false,
-            // API
-            useMainApi: true, apiVision: { endpoint: '', key: '', model: '', concurrency: 1, prompt: '请用中文详细描述这张穿搭图片中的服装。包括：服装类型、颜色、材质、款式细节、搭配方式等。只描述服装本身，不描述人物外貌。每套穿搭的描述控制在100-200字。', overwrite: false, parsePrompt: '请逐件列出图中可见单品。格式：类别：描述。类别包括上装/下装/外套/鞋袜/配饰/包包。只列图中实际可见的。每件一行15-30字。', autoTagPrompt: '分析这张穿搭照片，用以下格式回复（简洁，不要解释）：\n名称：<5-15字>\n类型：套装 或 单品\n风格：选一个（学院/简约/运动/甜美/通勤/休闲/街头/优雅/舒适）\n季节：选一个（春/夏/秋/冬/全年）\n场景：选一个（外出/家居/办公/约会/运动/睡前）\n---\n<描述100-200字>' }
+            debug: false
         };
-    }
-
-    function autoDetectApiConfig(d) {
-        try {
-            if (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) {
-                var ctx = SillyTavern.getContext();
-                if (ctx.chatCompletionSettings) {
-                    var cs = ctx.chatCompletionSettings;
-                    if (cs.api_url) d.apiVision.endpoint = cs.api_url;
-                    if (cs.api_key) d.apiVision.key = cs.api_key;
-                    if (cs.model) d.apiVision.model = cs.model;
-                }
-            }
-        } catch (e) {}
     }
 
     function parseAutoTagResult(text) {
@@ -385,24 +368,41 @@
             '@keyframes om-sheet-up{from{transform:translateY(100%)}to{transform:translateY(0)}}',
             '@keyframes om-popin{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}',
 
-            /* 全屏遮罩/容器 */
+            /* 全屏遮罩/容器 — 改为窗口化 */
             '.om-light{--om-bg:#f5f5f7;--om-bg2:#ececef;--om-text:#111;--om-border:rgba(0,0,0,.1);--om-card-bg:rgba(0,0,0,.04);--om-head-bg:rgba(255,255,255,.8);}',
             '.om-dark{--om-bg:#16161a;--om-bg2:#1e1e24;--om-text:#eee;--om-border:rgba(255,255,255,.08);--om-card-bg:rgba(255,255,255,.05);--om-head-bg:rgba(0,0,0,.3);}',
-            '.om-overlay{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100dvh;z-index:2147483647;',
+            '.om-overlay{position:fixed;inset:4vh 3vw;z-index:2147483647;',
             'background:var(--om-bg,var(--SmartThemeBackgroundColor,#16161a));',
             'color:var(--om-text,var(--SmartThemeBodyColor,#eee));',
-            'display:flex;flex-direction:column;color:var(--SmartThemeBodyColor,#eee);',
-            'animation:om-fadein .18s ease;font-size:14px;}',
+            'display:flex;flex-direction:column;color:var(--SmartThemeBodyColor,#eee));',
+            'animation:om-fadein .18s ease;font-size:14px;',
+            'border:1px solid rgba(127,127,127,.1);border-radius:16px;',
+            'box-shadow:0 16px 48px rgba(0,0,0,.35);',
+            'transform:translate3d(var(--om-offset-x,0),var(--om-offset-y,0),0) scale(var(--om-scale,1));',
+            'transform-origin:center center;transition:transform 160ms ease-out;overflow:hidden;}',
+            '.om-overlay.om-dragging{transition:none;}',
+            /* 遮罩背景层 */
+            '.om-backdrop{position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);',
+            'backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);animation:om-fadein .18s ease;}',
 
             /* 主框 全屏填满 */
             '.om-box{width:100%;height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;}',
 
             /* ══ 顶栏 ══ */
             '.om-head{display:flex;align-items:center;gap:8px;padding:12px 15px;flex-shrink:0;',
-            'border-bottom:1px solid rgba(127,127,127,.1);background:rgba(0,0,0,.12);}',
-            '.om-head-title{font-weight:700;font-size:1.05em;display:flex;align-items:center;gap:7px;flex:1;min-width:0;}',
+            'border-bottom:1px solid rgba(127,127,127,.1);background:rgba(0,0,0,.12);',
+            'cursor:move;user-select:none;touch-action:none;}',
+            '.om-head-title{font-weight:700;font-size:1.05em;display:flex;align-items:center;gap:7px;flex:1;min-width:0;pointer-events:auto;}',
             '.om-head-title i{color:var(--SmartThemeQuoteColor,#7c6daf);}',
-            '.om-head-actions{display:flex;align-items:center;gap:4px;}',
+            '.om-head-actions{display:flex;align-items:center;gap:4px;pointer-events:auto;}',
+            /* 视口控制（缩放） */
+            '.om-viewport{display:flex;align-items:center;gap:3px;padding:2px;',
+            'border:1px solid rgba(127,127,127,.15);border-radius:8px;background:rgba(127,127,127,.06);}',
+            '.om-viewport-btn{cursor:pointer;background:none;border:none;color:inherit;opacity:.6;',
+            'width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;',
+            'transition:.15s;font-size:.8em;}',
+            '.om-viewport-btn:hover{opacity:1;background:rgba(127,127,127,.15);}',
+            '.om-viewport-label{min-width:38px;text-align:center;font-size:.75em;opacity:.6;}',
             '.om-icon-btn{cursor:pointer;background:none;border:none;opacity:.55;font-size:1.15em;',
             'width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;',
             'transition:.18s;color:inherit;flex-shrink:0;}',
@@ -764,6 +764,9 @@
             'color:#fff;font-size:.9em;font-weight:600;background:rgba(0,0,0,.4);',
             'padding:5px 16px;border-radius:20px;max-width:60vw;white-space:nowrap;',
             'overflow:hidden;text-overflow:ellipsis;z-index:2147483647;}',
+
+            /* ══ 扩展设置面板入口 ══ */
+            '.om-settings-entry{margin-bottom:2px;}',
         ].join('');
         document.head.appendChild(s);
     }
@@ -784,15 +787,46 @@
     var detailPanelOpen = false;
 
     // ── 打开全屏主界面 ────────────────────────────────────────
+    var omOffsetX = 0, omOffsetY = 0, omScale = 1;
+    var omDragState = null;
+
+    function applyOmViewport() {
+        var ov = document.querySelector('.om-overlay');
+        if (ov) {
+            ov.style.setProperty('--om-offset-x', omOffsetX + 'px');
+            ov.style.setProperty('--om-offset-y', omOffsetY + 'px');
+            ov.style.setProperty('--om-scale', String(omScale));
+        }
+        var lbl = document.getElementById('om-zoom-label');
+        if (lbl) lbl.textContent = Math.round(omScale * 100) + '%';
+    }
+
+    function resetOmViewport() {
+        omOffsetX = 0; omOffsetY = 0; omScale = 1;
+        try { localStorage.setItem('om-viewport', JSON.stringify({x:0,y:0,s:1})); } catch(e){}
+        applyOmViewport();
+    }
+
+    function loadOmViewport() {
+        try {
+            var v = JSON.parse(localStorage.getItem('om-viewport'));
+            if (v) { omOffsetX = v.x || 0; omOffsetY = v.y || 0; omScale = v.s || 1; }
+        } catch(e){}
+    }
+
+    function saveOmViewport() {
+        try { localStorage.setItem('om-viewport', JSON.stringify({x:omOffsetX,y:omOffsetY,s:omScale})); } catch(e){}
+    }
+
     function openPopup() {
         if (document.querySelector('.om-overlay')) return;
-        // 防止悬浮球点击事件穿透到面板下方的元素
-        var shield = document.createElement('div');
-        shield.setAttribute('style', 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483646;');
-        shield.addEventListener('touchstart', function (e) { e.preventDefault(); e.stopPropagation(); }, { passive: false });
-        shield.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); }, { passive: false });
-        document.body.appendChild(shield);
-        setTimeout(function () { if (shield.parentNode) shield.parentNode.removeChild(shield); }, 400);
+        loadOmViewport();
+
+        // 遮罩背景层
+        var backdrop = document.createElement('div');
+        backdrop.className = 'om-backdrop';
+        backdrop.addEventListener('click', closePopup);
+        document.body.appendChild(backdrop);
 
         injectStyles();
         batchMode = false; batchSelected = []; searchQuery = ''; searchOpen = false; detailPanelOpen = false;
@@ -807,6 +841,12 @@
             '<div class="om-head">' +
             '<div class="om-head-title"><i class="fa-solid fa-shirt"></i>' + SCRIPT_NAME + '</div>' +
             '<div class="om-head-actions">' +
+            '<div class="om-viewport">' +
+            '<button class="om-viewport-btn" id="om-zoom-out" title="缩小"><i class="fa-solid fa-magnifying-glass-minus"></i></button>' +
+            '<span class="om-viewport-label" id="om-zoom-label">' + Math.round(omScale * 100) + '%</span>' +
+            '<button class="om-viewport-btn" id="om-zoom-reset" title="复位"><i class="fa-solid fa-arrows-to-dot"></i></button>' +
+            '<button class="om-viewport-btn" id="om-zoom-in" title="放大"><i class="fa-solid fa-magnifying-glass-plus"></i></button>' +
+            '</div>' +
             '<button class="om-icon-btn" id="om-search-toggle" title="搜索"><i class="fa-solid fa-magnifying-glass"></i></button>' +
             '<button class="om-theme-btn" id="om-theme-toggle"><i class="fa-solid fa-circle-half-stroke"></i></button>' +
             '<button class="om-icon-btn" id="om-x" title="关闭"><i class="fa-solid fa-xmark"></i></button>' +
@@ -839,6 +879,36 @@
 
         // 绑定顶栏
         ov.querySelector('#om-x').addEventListener('click', closePopup);
+        ov.querySelector('#om-zoom-out').addEventListener('click', function () { omScale = Math.max(0.5, omScale - 0.1); saveOmViewport(); applyOmViewport(); });
+        ov.querySelector('#om-zoom-in').addEventListener('click', function () { omScale = Math.min(1.5, omScale + 0.1); saveOmViewport(); applyOmViewport(); });
+        ov.querySelector('#om-zoom-reset').addEventListener('click', function () { resetOmViewport(); });
+        // 拖拽面板
+        var head = ov.querySelector('.om-head');
+        function onHeadPointerDown(e) {
+            if (e.target.closest('button, input, select, a, label, .om-viewport')) return;
+            omDragState = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, startOX: omOffsetX, startOY: omOffsetY };
+            ov.classList.add('om-dragging');
+            e.preventDefault();
+            head.setPointerCapture(e.pointerId);
+        }
+        function onHeadPointerMove(e) {
+            if (!omDragState || e.pointerId !== omDragState.pointerId) return;
+            omOffsetX = omDragState.startOX + e.clientX - omDragState.startX;
+            omOffsetY = omDragState.startOY + e.clientY - omDragState.startY;
+            applyOmViewport();
+        }
+        function onHeadPointerUp(e) {
+            if (!omDragState || e.pointerId !== omDragState.pointerId) return;
+            omOffsetX = Math.round(omOffsetX); omOffsetY = Math.round(omOffsetY);
+            ov.classList.remove('om-dragging');
+            omDragState = null;
+            saveOmViewport();
+            applyOmViewport();
+        }
+        head.addEventListener('pointerdown', onHeadPointerDown);
+        head.addEventListener('pointermove', onHeadPointerMove);
+        head.addEventListener('pointerup', onHeadPointerUp);
+        head.addEventListener('pointercancel', onHeadPointerUp);
         ov.querySelector('#om-theme-toggle').addEventListener('click', function () {
             darkMode = !darkMode;
             var overlay = document.querySelector('.om-overlay');
@@ -889,6 +959,7 @@
 
     function closePopup() {
         var ov = document.querySelector('.om-overlay'); if (ov) ov.parentNode.removeChild(ov);
+        var bd = document.querySelector('.om-backdrop'); if (bd) bd.parentNode.removeChild(bd);
     }
 
 
@@ -1186,10 +1257,7 @@
                 '<button class="om-batch-btn" id="om-batch-none">取消</button>' +
                 '<button class="om-batch-btn" id="om-batch-cat"><i class="fa-solid fa-folder"></i> 分类</button>' +
                 '<button class="om-batch-btn" id="om-batch-tag"><i class="fa-solid fa-tag"></i> 标签</button>' +
-                '<button class="om-batch-btn" id="om-batch-aidesc"><i class="fa-solid fa-wand-magic-sparkles"></i> AI描述</button>' +
                 '<button class="om-batch-btn" id="om-batch-paste"><i class="fa-solid fa-paste"></i> 批量粘贴</button>' +
-                '<button class="om-batch-btn" id="om-batch-parse"><i class="fa-solid fa-list-check"></i> 单品解析</button>' +
-                '<button class="om-batch-btn" id="om-batch-autotag"><i class="fa-solid fa-wand-magic-sparkles"></i> 一键识别</button>' +
                 '<button class="om-batch-btn danger" id="om-batch-del"><i class="fa-solid fa-trash"></i> 删除</button>' +
                 '</div></div>';
         }
@@ -1336,22 +1404,6 @@
                     save(dd); mp.removeChild(modal); renderGrid(); renderCatbar(); toast('✅ 已更新 ' + updated + ' 套');
                 });
             });
-            var bparseBtn2 = area.querySelector('#om-batch-parse');
-            if (bparseBtn2) bparseBtn2.addEventListener('click', function () { if (batchSelected.length === 0) { toast('请先选择穿搭', true); return; } var ddx = load(); if (!ddx.apiVision.endpoint || !ddx.apiVision.key || !ddx.apiVision.model) { toast('请先配置 API', true); return; } openBatchParseModal(batchSelected.slice()); });
-            var bautotagBtn2 = area.querySelector('#om-batch-autotag');
-            if (bautotagBtn2) bautotagBtn2.addEventListener('click', function () { if (batchSelected.length === 0) { toast('请先选择穿搭', true); return; } var ddx2 = load(); if (!ddx2.apiVision.endpoint || !ddx2.apiVision.key || !ddx2.apiVision.model) { toast('请先配置 API', true); return; } openBatchAutoTagModal(batchSelected.slice()); });
-            var baidescBtn = area.querySelector('#om-batch-aidesc');
-            if (baidescBtn) baidescBtn.addEventListener('click', function () {
-                if (batchSelected.length === 0) { toast('请先选择穿搭', true); return; }
-                var dd = load();
-                if (!dd.apiVision.endpoint || !dd.apiVision.key || !dd.apiVision.model) {
-                    toast('请先在设置中配置"描述生成 API"', true); return;
-                }
-                var hasImg = batchSelected.some(function (id) { var o = getById(dd, id); return o && o.imageData; });
-                if (!hasImg) { toast('所选穿搭中没有带图片的', true); return; }
-                openBatchDescModal(batchSelected.slice());
-            });
-
             area.querySelectorAll('.om-card').forEach(function (card) {
                 card.addEventListener('click', function (e) {
                     if (e.target.closest('.om-card-check')) return;
@@ -1379,34 +1431,53 @@
                 });
             });
         } else {
-            // 非批量：单击 = 选择/取消，点击⋯按钮 = 操作菜单
+            // 非批量：单击 = 换上这一套；Ctrl/Shift/Command + 单击 = 多套衣柜模式
             area.querySelectorAll('.om-card').forEach(function (card) {
                 var id = card.dataset.id;
 
                 card.addEventListener('click', function (e) {
-                    if (e.target.closest('.om-card-menu') || e.target.closest('.om-badge-on')) return;
+                    if (e.target.closest('.om-card-menu')) return;
                     var dd = load();
                     var aids = getViewActiveIds(dd);
                     var idx = aids.indexOf(id);
-                    if (idx !== -1) aids.splice(idx, 1); else aids.push(id);
+                    var wasActive = idx !== -1;
+                    var multiMode = e.ctrlKey || e.metaKey || e.shiftKey;
+                    if (multiMode) {
+                        if (wasActive) aids.splice(idx, 1); else aids.push(id);
+                    } else if (wasActive && aids.length === 1) {
+                        aids = [];
+                    } else {
+                        aids = [id];
+                    }
                     setViewActiveIds(dd, aids);
                     save(dd); updateBtn(); renderBottomStatus();
 
 
-                    save(dd); updateBtn(); renderBottomStatus();
-                    // 更新卡片样式
-                    card.classList.toggle('on', isActive(dd, id));
-                    var badge = card.querySelector('.om-badge-on');
-                    if (isActive(dd, id)) {
-                        if (!badge) { var b = document.createElement('div'); b.className = 'om-badge-on'; b.innerHTML = '<i class="fa-solid fa-check"></i>'; card.querySelector('.om-card-img').appendChild(b); }
-                    } else {
-                        if (badge) badge.parentNode.removeChild(badge);
-                    }
+                    // 更新整页卡片样式，普通点击会替换掉旧穿搭
+                    area.querySelectorAll('.om-card').forEach(function (c) {
+                        var cid = c.dataset.id;
+                        var active = isActive(dd, cid);
+                        c.classList.toggle('on', active);
+                        var badge = c.querySelector('.om-badge-on');
+                        if (active) {
+                            if (!badge) {
+                                var img = c.querySelector('.om-card-img');
+                                if (img) {
+                                    var b = document.createElement('div');
+                                    b.className = 'om-badge-on';
+                                    b.innerHTML = '<i class="fa-solid fa-check"></i>';
+                                    img.appendChild(b);
+                                }
+                            }
+                        } else if (badge) {
+                            badge.parentNode.removeChild(badge);
+                        }
+                    });
                     closeDetailPanel();
                     var n = aids.length;
                     var o = getById(dd, id);
-                    if (idx !== -1) toast('已取消：' + (o ? o.name : ''));
-                    else if (n === 1) toast('✅ 已选：' + (o ? o.name : ''));
+                    if (n === 0) toast('已取消：' + (o ? o.name : ''));
+                    else if (n === 1) toast('✅ 已换装：' + (o ? o.name : '') + '，下次发送时注入');
                     else toast('✅ 衣柜模式，共' + n + '套');
                 });
             });
@@ -1613,7 +1684,6 @@
                 : '<div class="om-ctx-item" id="om-ctx-wear"><i class="fa-solid fa-circle-check"></i>选择穿搭</div>',
             outfit.imageData ? '<div class="om-ctx-item" id="om-ctx-view"><i class="fa-solid fa-expand"></i>查看大图</div>' : '',
             '<div class="om-ctx-item" id="om-ctx-edit"><i class="fa-solid fa-pen"></i>编辑</div>',
-            outfit.imageData ? '<div class="om-ctx-item" id="om-ctx-aidesc"><i class="fa-solid fa-wand-magic-sparkles"></i>AI 生成描述</div>' : '',
             '<div class="om-ctx-item danger" id="om-ctx-del"><i class="fa-solid fa-trash"></i>删除</div>',
         ].join(''));
 
@@ -1623,7 +1693,7 @@
             var dd = load();
             var aids = getViewActiveIds(dd);
             var idx = aids.indexOf(outfit.id);
-            if (idx !== -1) aids.splice(idx, 1); else aids.push(outfit.id);
+            if (idx !== -1) aids.splice(idx, 1); else aids = [outfit.id];
             setViewActiveIds(dd, aids);
             save(dd); updateBtn(); renderBottomStatus(); renderGrid();
             closeDetailPanel();
@@ -1639,24 +1709,6 @@
         if (editEl) editEl.addEventListener('click', function () {
             closeSheet(sheet);
             openEditSheet(outfit, outfit.category || '');
-        });
-
-        var aidescEl = sheet.querySelector('#om-ctx-aidesc');
-        if (aidescEl) aidescEl.addEventListener('click', function () {
-            var dd = load();
-            if (!dd.apiVision.endpoint || !dd.apiVision.key || !dd.apiVision.model) {
-                toast('请先在设置中配置"描述生成 API"', true); closeSheet(sheet); return;
-            }
-            aidescEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>生成中...';
-            aidescEl.style.pointerEvents = 'none';
-            generateSingleDescription(outfit, function (err, desc) {
-                closeSheet(sheet);
-                if (err) { toast('生成失败：' + err, true); return; }
-                var dd2 = load(); var o = getById(dd2, outfit.id);
-                if (o) { o.description = desc; save(dd2); }
-                toast('✅ 描述已生成：' + outfit.name);
-                renderGrid();
-            });
         });
 
         var delEl = sheet.querySelector('#om-ctx-del');
@@ -1678,62 +1730,6 @@
         d.outfits.forEach(function (o) { if (o.sceneTag && o.sceneTag.trim()) { var t = o.sceneTag.trim(); if (tags.indexOf(t) === -1) tags.push(t); } });
         return tags;
     }
-
-    function batchParseItems(outfitIds, prompt, progressCb, doneCb) {
-        var d = load(); var apiCfg = d.apiVision; if (!apiCfg.endpoint || !apiCfg.key || !apiCfg.model) { doneCb('API 未配置'); return; }
-        var targets = []; outfitIds.forEach(function (id) { var o = getById(d, id); if (!o || !o.imageData) return; targets.push(o); });
-        if (targets.length === 0) { doneCb('没有需要解析的穿搭'); return; }
-        var done = 0; var total = targets.length; var errors = []; var queue = targets.slice();
-        var CONCURRENCY = 2;
-        function processNext() { if (queue.length === 0) return; var o = queue.shift(); callVisionAPI(apiCfg, { name: o.name, dataUrl: o.imageData }, prompt, function (err, text) { done++; if (err) errors.push({ name: o.name, error: err }); else if (text) o.description = text; else errors.push({ name: o.name, error: '返回为空' }); progressCb(done, total, '已完成 ' + done + '/' + total); if (done >= total) { save(d); doneCb(errors.length > 0 ? '完成，但有 ' + errors.length + ' 个错误' : null, done, errors); } else processNext(); }); }
-        progressCb(0, total, '开始（并发' + CONCURRENCY + '）'); for (var i = 0; i < Math.min(CONCURRENCY, total); i++) processNext();
-    }
-
-    function openBatchParseModal(ids) {
-        var d = load(); var withImg = ids.filter(function (id) { var o = getById(d, id); return o && o.imageData; });
-        if (withImg.length === 0) { toast('所选穿搭中没有带图片的', true); return; }
-        var bg = darkMode ? '#1e1e24' : '#ececef'; var fg = darkMode ? '#eee' : '#111';
-        var modal = document.createElement('div'); modal.className = 'om-modal';
-        modal.innerHTML = '<div class="om-modal-box" style="background:' + bg + ';color:' + fg + '"><div class="om-modal-title">AI 批量单品解析</div><div style="font-size:.82em;opacity:.7;margin-bottom:8px">共 ' + withImg.length + ' 套</div><div id="om-bp-progress" style="display:none;margin:10px 0"><div id="om-bp-prog-text" style="font-size:.82em;margin-bottom:6px"></div><div style="height:6px;background:rgba(127,127,127,.15);border-radius:3px"><div id="om-bp-prog-bar" style="height:100%;width:0%;background:var(--SmartThemeQuoteColor,#7c6daf);border-radius:3px;transition:width .3s"></div></div></div><div id="om-bp-result" style="display:none;margin:8px 0;font-size:.82em;max-height:120px;overflow-y:auto"></div><div class="om-btn-row" id="om-bp-actions"><button class="om-btn om-btn-safe" id="om-bp-start">开始</button><button class="om-btn om-btn-outline" id="om-bp-close">取消</button></div></div>';
-        var mp = getPopupLayer(); modal.style.cssText = 'position:absolute !important;inset:0 !important;z-index:1 !important;background:rgba(0,0,0,.45) !important;display:flex !important;align-items:center !important;justify-content:center !important;padding:20px !important;box-sizing:border-box !important;pointer-events:auto !important;';
-        mp.appendChild(modal); modal.addEventListener('click', function (e) { if (e.target === modal && !modal.dataset.running) mp.removeChild(modal); });
-        modal.querySelector('#om-bp-close').addEventListener('click', function () { if (!modal.dataset.running) mp.removeChild(modal); });
-        modal.querySelector('#om-bp-start').addEventListener('click', function () { modal.dataset.running = '1'; modal.querySelector('#om-bp-progress').style.display = 'block'; modal.querySelector('#om-bp-start').disabled = true;
-            var prompt = d.apiVision.parsePrompt || '请逐件列出单品'; batchParseItems(ids, prompt, function (done, total, msg) { var pct = total > 0 ? Math.round(done / total * 100) : 0; modal.querySelector('#om-bp-prog-bar').style.width = pct + '%'; modal.querySelector('#om-bp-prog-text').textContent = msg; },
-            function (err, doneCount, errors) { delete modal.dataset.running; modal.querySelector('#om-bp-prog-bar').style.width = '100%'; var re = modal.querySelector('#om-bp-result'); re.style.display = 'block'; var sc = (doneCount || 0) - (errors ? errors.length : 0); var errDetail = errors && errors.length > 0 ? '<div style="color:#ff8c42;margin-top:4px">' + errors.length + ' 个失败：' + errors.map(function(e){return e.name+': '+e.error;}).join('<br>') + '</div>' : ''; re.innerHTML = '<div style="color:#4caf50;font-weight:600">成功 ' + sc + ' 条</div>' + errDetail; modal.querySelector('#om-bp-actions').innerHTML = '<button class="om-btn om-btn-safe" id="om-bp-done">完成</button>'; modal.querySelector('#om-bp-done').addEventListener('click', function () { mp.removeChild(modal); renderGrid(); }); }); });
-    }
-
-    function batchAutoTagItems(outfitIds, prompt, progressCb, doneCb) {
-        var d = load(); var apiCfg = d.apiVision; if (!apiCfg.endpoint || !apiCfg.key || !apiCfg.model) { doneCb('API 未配置'); return; }
-        var targets = []; outfitIds.forEach(function (id) { var o = getById(d, id); if (!o || !o.imageData) return; targets.push(o); });
-        if (targets.length === 0) { doneCb('没有需要识别的穿搭'); return; }
-        var done = 0; var total = targets.length; var errors = []; var queue = targets.slice();
-        var ITEM_DELAY = 800;
-        function processNext() { if (queue.length === 0) return; var o = queue.shift(); callVisionAPI(apiCfg, { name: o.name, dataUrl: o.imageData }, prompt, function (err, text) { done++; if (err) { errors.push({ name: o.name, error: err }); } else if (text) { var parsed = parseAutoTagResult(text); if (parsed.name) o.name = parsed.name; if (parsed.type) o.type = parsed.type; if (parsed.style) o.style = parsed.style; if (parsed.season) o.season = parsed.season; if (parsed.scene) o.sceneTag = parsed.scene; if (parsed.description) o.description = parsed.description; if (!parsed.name && !parsed.style && !parsed.season && !parsed.scene) { o.description = text; } } else { errors.push({ name: o.name, error: '返回为空' }); } progressCb(done, total, '已完成 ' + done + '/' + total + (errors.length > 0 ? ' (' + errors.length + '失败)' : '')); if (done >= total) { save(d); doneCb(errors.length > 0 ? '完成，但有 ' + errors.length + ' 个错误' : null, done, errors); } else { setTimeout(processNext, ITEM_DELAY); } }); }
-        progressCb(0, total, '开始处理 ' + total + ' 套（遇限速自动重试）'); processNext();
-    }
-
-    function openBatchAutoTagModal(ids) {
-        var d = load(); var withImg = ids.filter(function (id) { var o = getById(d, id); return o && o.imageData; });
-        if (withImg.length === 0) { toast('所选穿搭中没有带图片的', true); return; }
-        var bg = darkMode ? '#1e1e24' : '#ececef'; var fg = darkMode ? '#eee' : '#111';
-        var modal = document.createElement('div'); modal.className = 'om-modal';
-        modal.innerHTML = '<div class="om-modal-box" style="background:' + bg + ';color:' + fg + '"><div class="om-modal-title">AI 批量一键识别</div><div style="font-size:.82em;opacity:.7;margin-bottom:8px">共 ' + withImg.length + ' 套</div><div id="om-at-progress" style="display:none;margin:10px 0"><div id="om-at-prog-text" style="font-size:.82em;margin-bottom:6px"></div><div style="height:6px;background:rgba(127,127,127,.15);border-radius:3px"><div id="om-at-prog-bar" style="height:100%;width:0%;background:var(--SmartThemeQuoteColor,#7c6daf);border-radius:3px;transition:width .3s"></div></div></div><div id="om-at-result" style="display:none;margin:8px 0;font-size:.82em;max-height:120px;overflow-y:auto"></div><div class="om-btn-row" id="om-at-actions"><button class="om-btn om-btn-safe" id="om-at-start">开始</button><button class="om-btn om-btn-outline" id="om-at-close">取消</button></div></div>';
-        var mp = getPopupLayer(); modal.style.cssText = 'position:absolute !important;inset:0 !important;z-index:1 !important;background:rgba(0,0,0,.45) !important;display:flex !important;align-items:center !important;justify-content:center !important;padding:20px !important;box-sizing:border-box !important;pointer-events:auto !important;';
-        mp.appendChild(modal); modal.addEventListener('click', function (e) { if (e.target === modal && !modal.dataset.running) mp.removeChild(modal); });
-        modal.querySelector('#om-at-close').addEventListener('click', function () { if (!modal.dataset.running) mp.removeChild(modal); });
-        modal.querySelector('#om-at-start').addEventListener('click', function () { modal.dataset.running = '1'; modal.querySelector('#om-at-progress').style.display = 'block'; modal.querySelector('#om-at-start').disabled = true;
-            var prompt = d.apiVision.autoTagPrompt || '请分析'; batchAutoTagItems(ids, prompt, function (done, total, msg) { var pct = total > 0 ? Math.round(done / total * 100) : 0; modal.querySelector('#om-at-prog-bar').style.width = pct + '%'; modal.querySelector('#om-at-prog-text').textContent = msg; },
-            function (err, doneCount, errors) { delete modal.dataset.running; modal.querySelector('#om-at-prog-bar').style.width = '100%'; var re = modal.querySelector('#om-at-result'); re.style.display = 'block'; var sc = (doneCount || 0) - (errors ? errors.length : 0); var errDetail = errors && errors.length > 0 ? '<div style="color:#ff8c42;margin-top:4px">' + errors.length + ' 个失败：' + errors.map(function(e){return e.name+': '+e.error;}).join('<br>') + '</div>' : ''; re.innerHTML = '<div style="color:#4caf50;font-weight:600">成功 ' + sc + ' 条</div>' + errDetail; modal.querySelector('#om-at-actions').innerHTML = '<button class="om-btn om-btn-safe" id="om-at-done">完成</button>'; modal.querySelector('#om-at-done').addEventListener('click', function () { mp.removeChild(modal); renderGrid(); }); }); });
-    }
-
-    function generateSingleParse(outfit, parsePrompt, cb) {
-        var d = load(); var apiCfg = d.apiVision;
-        if (!apiCfg.endpoint || !apiCfg.key || !apiCfg.model) { cb('API 未配置'); return; }
-        if (!outfit.imageData) { cb('没有图片'); return; }
-        callVisionAPI(apiCfg, { name: outfit.name, dataUrl: outfit.imageData }, parsePrompt, function (err, text) { if (err) { cb(err); return; } cb(null, text); });
-    }
-
 
     function openBatchAddSheet(defaultCat) {
         var d = load(); var viewCats = getViewCategories(d);
@@ -1859,9 +1855,7 @@
             '<div class="om-field"><label>类型</label><div class="om-type-radios"><label class="om-radio-label"><input type="radio" name="om-dtype" value="套装"' + (!outfit || outfit.type !== '单品' ? ' checked' : '') + ' /> 套装</label><label class="om-radio-label" style="margin-left:16px"><input type="radio" name="om-dtype" value="单品"' + (outfit && outfit.type === '单品' ? ' checked' : '') + ' /> 单品</label></div></div>',
             '<div class="om-field"><label>风格</label><input type="text" id="om-dstyle" placeholder="学院 / 简约 / 运动 / 甜美 / 通勤 / 休闲 / 街头 / 优雅 / 舒适" value="' + esc(outfit ? outfit.style || '' : '') + '" /></div>',
             '<div class="om-field"><label>季节</label><input type="text" id="om-dseason" placeholder="春 / 夏 / 秋 / 冬 / 全年" value="' + esc(outfit ? outfit.season || '' : '') + '" /></div>',
-            '<div class="om-field"><label>文字描述 <span class="om-hint">AI 注入用，越详细越好</span></label><textarea id="om-ddesc" rows="4" placeholder="如：白色蕾丝镂空连衣裙，领口略低，裙摆及膝……">' + esc(outfit ? outfit.description || '' : '') + '</textarea>' +
-            '<button class="om-btn om-btn-outline" id="om-daidesc" style="font-size:.78em;margin-top:5px;align-self:flex-start"><i class="fa-solid fa-wand-magic-sparkles"></i> AI 生成描述</button>' +
-            '<button class="om-btn om-btn-outline" id="om-dautotag" style="font-size:.78em;margin-top:5px;align-self:flex-start"><i class="fa-solid fa-wand-magic-sparkles"></i> AI 一键识别</button></div>',
+            '<div class="om-field"><label>文字描述 <span class="om-hint">注入用，越详细越好</span></label><textarea id="om-ddesc" rows="4" placeholder="如：白色蕾丝镂空连衣裙，领口略低，裙摆及膝……">' + esc(outfit ? outfit.description || '' : '') + '</textarea></div>',
             '<div class="om-field"><label>场景标签 <span class="om-hint">多套时 AI 据此选穿搭，如：外出 / 家居 / 睡前</span></label>',
             '<div class="om-suggest-wrap"><input type="text" id="om-dscene" placeholder="外出 / 家居 / 睡前 / 运动" value="' + esc(outfit ? outfit.sceneTag || '' : '') + '" autocomplete="off" />',
             '<div class="om-suggest-list" id="om-scene-suggest" style="display:none"></div></div></div>',
@@ -1920,24 +1914,6 @@
         imgArea.addEventListener('drop', function (e) { e.preventDefault(); imgArea.classList.remove('drag'); if (e.dataTransfer && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
         var clr = sheet.querySelector('#om-dclr'); if (clr) clr.addEventListener('click', function () { setImg(null); });
 
-        // AI 生成描述按钮
-        sheet.querySelector('#om-daidesc').addEventListener('click', function () {
-            var imgData = editImgData;
-            if (!imgData) { toast('请先上传图片', true); return; }
-            var dd = load();
-            if (!dd.apiVision.endpoint || !dd.apiVision.key || !dd.apiVision.model) { toast('请先在设置中配置"描述生成 API"', true); return; }
-            var btn = sheet.querySelector('#om-daidesc');
-            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 生成中...';
-            var tmpOutfit = { name: sheet.querySelector('#om-dn').value || '穿搭', imageData: imgData };
-            generateSingleDescription(tmpOutfit, function (err, desc) {
-                btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 生成描述';
-                if (err) { toast('生成失败：' + err, true); return; }
-                sheet.querySelector('#om-ddesc').value = desc;
-                toast('✅ 描述已生成');
-            });
-        });
-
-        sheet.querySelector('#om-dautotag').addEventListener('click', function () { var imgData = editImgData; if (!imgData) { toast('请先上传图片', true); return; } var ddx = load(); if (!ddx.apiVision.endpoint || !ddx.apiVision.key || !ddx.apiVision.model) { toast('请先配置 API', true); return; } var btnx = this; btnx.disabled = true; btnx.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 识别中...'; callVisionAPI(ddx.apiVision, { name: sheet.querySelector('#om-dn').value || '穿搭', dataUrl: imgData }, ddx.apiVision.autoTagPrompt, function (err, text) { btnx.disabled = false; btnx.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 一键识别'; if (err) { toast('识别失败：' + err, true); return; } var parsed = parseAutoTagResult(text); if (parsed.name) sheet.querySelector('#om-dn').value = parsed.name; if (parsed.type) { var radios = sheet.querySelectorAll('input[name="om-dtype"]'); radios.forEach(function (r) { r.checked = r.value === parsed.type; }); } if (parsed.style) sheet.querySelector('#om-dstyle').value = parsed.style; if (parsed.season) sheet.querySelector('#om-dseason').value = parsed.season; if (parsed.scene) sheet.querySelector('#om-dscene').value = parsed.scene; if (parsed.description) sheet.querySelector('#om-ddesc').value = parsed.description; toast('一键识别完成'); }); });
         sheet.querySelector('#om-dnewcat').addEventListener('click', function () {
             var name = prompt('新分类名称：'); if (!name || !name.trim()) return; name = name.trim();
             var dd = load(); var vc = getViewCategories(dd); if (vc.indexOf(name) === -1) { vc.push(name); save(dd); renderCatbar(); }
@@ -2144,19 +2120,6 @@
             '<div class="om-setting-row" style="margin-top:6px"><label>衣柜+图片</label><textarea id="om-multi-imgprompt" rows="2">' + esc(d.multiImagePrompt) + '</textarea></div>',
 
             '<div class="om-divider"></div>',
-            '<div class="om-sec-title"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:4px"></i>描述生成 API <span class="om-hint">（用于批量生成穿搭文字描述，需要 Vision 模型）</span></div>',
-            '<div class="om-setting-row om-row-inline"><label>使用酒馆主 API（推荐）</label><input type="checkbox" class="om-chk" id="om-use-main-api"' + (d.useMainApi !== false ? ' checked' : '') + ' /></div>',
-            '<div id="om-custom-api-fields" style="display:' + (d.useMainApi !== false ? 'none' : 'block') + '">',
-            '<div class="om-setting-row"><label>API 地址</label><input type="text" id="om-api-v-endpoint" placeholder="https://api.openai.com 或中转站地址" value="' + esc(d.apiVision.endpoint) + '" style="background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;color:inherit;padding:7px 10px;font-size:.85em;width:100%;box-sizing:border-box;font-family:inherit" /></div>',
-            '<div class="om-setting-row"><label>API Key</label><input type="password" id="om-api-v-key" placeholder="sk-..." value="' + esc(d.apiVision.key) + '" style="background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;color:inherit;padding:7px 10px;font-size:.85em;width:100%;box-sizing:border-box;font-family:inherit" /></div>',
-            '<div class="om-setting-row"><label>模型名称</label><div style="display:flex;gap:6px;align-items:center"><input type="text" id="om-api-v-model" placeholder="gpt-4o / gemini-2.0-flash / claude-sonnet-4-20250514" value="' + esc(d.apiVision.model) + '" style="flex:1;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;color:inherit;padding:7px 10px;font-size:.85em;box-sizing:border-box;font-family:inherit" /><button class="om-btn om-btn-outline" id="om-api-v-model-fetch" style="font-size:.75em;white-space:nowrap;padding:7px 10px;flex-shrink:0"><i class="fa-solid fa-rotate"></i> 拉取</button></div></div>',
-            '<div class="om-setting-row"><label>并发数 <span class="om-hint">同时发送的请求数，越大越快但可能触发限速（1-5）</span></label><input type="number" id="om-api-v-batch" min="1" max="5" value="' + (d.apiVision.concurrency || 3) + '" style="background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;color:inherit;padding:7px 10px;font-size:.85em;width:80px;box-sizing:border-box;font-family:inherit" /></div>',
-            '<div class="om-setting-row"><label>描述生成 Prompt</label><textarea id="om-api-v-prompt" rows="3" style="background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;color:inherit;padding:7px 10px;font-size:.85em;width:100%;box-sizing:border-box;resize:vertical;font-family:inherit">' + esc(d.apiVision.prompt) + '</textarea></div>',
-            '<div class="om-setting-row om-row-inline"><label>覆盖已有描述</label><input type="checkbox" class="om-chk" id="om-api-v-overwrite"' + (d.apiVision.overwrite ? ' checked' : '') + ' /></div>',
-            '</div>',
-            '<div class="om-btn-row" style="margin-top:6px"><button class="om-btn om-btn-outline" id="om-api-v-test" style="font-size:.8em"><i class="fa-solid fa-flask-vial"></i> 测试连接</button></div>',
-
-            '<div class="om-divider"></div>',
             '<div class="om-sec-title">分类管理</div>',
             '<button class="om-btn om-btn-outline" id="om-open-cats" style="width:100%;text-align:left"><i class="fa-solid fa-tags" style="margin-right:7px"></i>管理分类…</button>',
 
@@ -2186,39 +2149,6 @@
         sheet.querySelector('#om-tpl-char-multi').addEventListener('input', function () { var dd = load(); dd.charMultiTemplate = this.value; save(dd); });
         sheet.querySelector('#om-imgprompt').addEventListener('input', function () { var dd = load(); dd.imagePrompt = this.value; save(dd); });
         sheet.querySelector('#om-multi-imgprompt').addEventListener('input', function () { var dd = load(); dd.multiImagePrompt = this.value; save(dd); });
-
-        // API Vision 配置
-        sheet.querySelector('#om-api-v-endpoint').addEventListener('input', function () { var dd = load(); dd.apiVision.endpoint = this.value.trim(); save(dd); });
-        sheet.querySelector('#om-api-v-key').addEventListener('input', function () { var dd = load(); dd.apiVision.key = this.value.trim(); save(dd); });
-        sheet.querySelector('#om-api-v-model').addEventListener('input', function () { var dd = load(); dd.apiVision.model = this.value.trim(); save(dd); });
-        sheet.querySelector('#om-api-v-batch').addEventListener('change', function () { var dd = load(); dd.apiVision.concurrency = Math.max(1, Math.min(5, parseInt(this.value) || 3)); save(dd); });
-        sheet.querySelector('#om-api-v-prompt').addEventListener('input', function () { var dd = load(); dd.apiVision.prompt = this.value; save(dd); });
-        sheet.querySelector('#om-api-v-overwrite').addEventListener('change', function () { var dd = load(); dd.apiVision.overwrite = this.checked; save(dd); });
-        sheet.querySelector('#om-use-main-api').addEventListener('change', function () { var dd = load(); dd.useMainApi = this.checked; if (this.checked) { autoDetectApiConfig(dd); } save(dd); var fields = sheet.querySelector('#om-custom-api-fields'); if (fields) fields.style.display = this.checked ? 'none' : 'block'; });
-        sheet.querySelector('#om-api-v-test').addEventListener('click', function () {
-            var dd = load();
-            if (!dd.apiVision.endpoint || !dd.apiVision.key || !dd.apiVision.model) { toast('请先填写 API 地址、Key 和模型名称', true); return; }
-            toast('正在测试...');
-            fetch(normalizeEndpoint(dd.apiVision.endpoint, 'chat'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + dd.apiVision.key },
-                body: JSON.stringify({ model: dd.apiVision.model, messages: [{ role: 'user', content: '回复OK' }], max_tokens: 10 })
-            }).then(function (r) {
-                if (!r.ok) return r.text().then(function (t) { throw new Error('HTTP ' + r.status); });
-                return r.json();
-            }).then(function () { toast('✅ 描述 API 连接成功！'); })
-            .catch(function (e) { toast('❌ 连接失败：' + e.message, true); });
-        });
-        // Vision 模型拉取按钮
-        var vModelFetch = sheet.querySelector('#om-api-v-model-fetch');
-        if (vModelFetch) vModelFetch.addEventListener('click', function () {
-            var dd = load();
-            if (!dd.apiVision.endpoint || !dd.apiVision.key) { toast('请先填写 API 地址和 Key', true); return; }
-            openModelPicker(dd.apiVision, function (model) {
-                dd = load(); dd.apiVision.model = model; save(dd);
-                var inp = sheet.querySelector('#om-api-v-model'); if (inp) inp.value = model;
-            });
-        });
 
         sheet.querySelector('#om-show-ball').addEventListener('change', function () {
             var dd = load(); dd.showBall = this.checked; save(dd);
@@ -2631,266 +2561,7 @@
 
     function closeFab() { /* no-op, fab is now single button */ }
 
-    // ── 批量 AI 生成描述弹窗 ──────────────────────────────────
-    function openBatchDescModal(ids) {
-        var d = load();
-        var withImg = ids.filter(function (id) { var o = getById(d, id); return o && o.imageData; });
-        var skipCount = ids.length - withImg.length;
-        var willSkipDesc = withImg.filter(function (id) { var o = getById(d, id); return o && o.description && o.description.trim() && !d.apiVision.overwrite; }).length;
-
-        var modal = document.createElement('div');
-        modal.className = 'om-modal';
-        modal.style.setProperty('z-index', '2147483647', 'important');
-        modal.innerHTML = '<div class="om-modal-box" style="background:' + (darkMode ? '#1e1e24' : '#ececef') + ';color:' + (darkMode ? '#eee' : '#111') + '">' +
-            '<div class="om-modal-title"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:6px;color:var(--SmartThemeQuoteColor,#7c6daf)"></i>AI 批量生成描述</div>' +
-            '<div style="font-size:.82em;opacity:.7;margin-bottom:8px">' +
-            '共选中 ' + ids.length + ' 套，其中 ' + withImg.length + ' 套有图片' +
-            (skipCount > 0 ? '，' + skipCount + ' 套无图片将跳过' : '') +
-            (willSkipDesc > 0 ? '<br>' + willSkipDesc + ' 套已有描述将跳过（可在设置中开启覆盖）' : '') +
-            '</div>' +
-            '<div style="font-size:.78em;opacity:.5;margin-bottom:6px">逐张发送，并发 ' + (d.apiVision.concurrency || 3) + ' 个请求，共需 ' + (withImg.length - willSkipDesc) + ' 次 API 调用</div>' +
-            '<div id="om-batch-progress" style="display:none;margin:10px 0">' +
-            '<div style="font-size:.82em;margin-bottom:6px" id="om-batch-prog-text">准备中...</div>' +
-            '<div style="height:6px;background:rgba(127,127,127,.15);border-radius:3px;overflow:hidden">' +
-            '<div id="om-batch-prog-bar" style="height:100%;width:0%;background:var(--SmartThemeQuoteColor,#7c6daf);border-radius:3px;transition:width .3s"></div></div></div>' +
-            '<div id="om-batch-result" style="display:none;margin:8px 0;font-size:.82em;max-height:120px;overflow-y:auto"></div>' +
-            '<div class="om-btn-row" style="margin-top:10px" id="om-batch-actions">' +
-            '<button class="om-btn om-btn-safe" id="om-batch-start"><i class="fa-solid fa-play"></i> 开始生成</button>' +
-            '<button class="om-btn om-btn-outline" id="om-batch-close">取消</button></div></div>';
-
-        var _mp = getPopupLayer();
-        modal.style.cssText = 'position:absolute !important;inset:0 !important;z-index:1 !important;background:rgba(0,0,0,.45) !important;display:flex !important;align-items:center !important;justify-content:center !important;padding:20px !important;box-sizing:border-box !important;pointer-events:auto !important;';
-        _mp.appendChild(modal);
-        modal.addEventListener('click', function (e) { if (e.target === modal && !modal.dataset.running) { _mp.removeChild(modal); } });
-        modal.querySelector('#om-batch-close').addEventListener('click', function () { if (!modal.dataset.running) _mp.removeChild(modal); });
-
-        modal.querySelector('#om-batch-start').addEventListener('click', function () {
-            modal.dataset.running = '1';
-            modal.querySelector('#om-batch-progress').style.display = 'block';
-            modal.querySelector('#om-batch-start').disabled = true;
-            modal.querySelector('#om-batch-start').textContent = '生成中...';
-            modal.querySelector('#om-batch-close').textContent = '请等待...';
-
-            batchGenerateDescriptions(ids,
-                function (done, total, msg) {
-                    // 进度回调
-                    var pct = total > 0 ? Math.round(done / total * 100) : 0;
-                    var bar = modal.querySelector('#om-batch-prog-bar');
-                    var txt = modal.querySelector('#om-batch-prog-text');
-                    if (bar) bar.style.width = pct + '%';
-                    if (txt) txt.textContent = msg;
-                },
-                function (err, doneCount, errors) {
-                    // 完成回调
-                    delete modal.dataset.running;
-                    var bar = modal.querySelector('#om-batch-prog-bar');
-                    if (bar) bar.style.width = '100%';
-                    var resultEl = modal.querySelector('#om-batch-result');
-                    resultEl.style.display = 'block';
-                    if (err && !doneCount) {
-                        resultEl.innerHTML = '<div style="color:#e57373"><i class="fa-solid fa-circle-exclamation"></i> ' + esc(err) + '</div>';
-                    } else {
-                        var successCount = (doneCount || 0) - (errors ? errors.length : 0);
-                        var html2 = '<div style="color:#4caf50;font-weight:600">✅ 成功生成 ' + successCount + ' 条描述</div>';
-                        if (errors && errors.length > 0) {
-                            html2 += '<div style="color:#ff8c42;margin-top:4px">⚠️ ' + errors.length + ' 个失败：</div>';
-                            errors.forEach(function (e) {
-                                html2 += '<div style="opacity:.6;font-size:.9em;margin-left:8px">· ' + esc(e.name) + '：' + esc(e.error) + '</div>';
-                            });
-                        }
-                        resultEl.innerHTML = html2;
-                    }
-                    var actionsEl = modal.querySelector('#om-batch-actions');
-                    actionsEl.innerHTML = '<button class="om-btn om-btn-safe" id="om-batch-done">完成</button>';
-                    modal.querySelector('#om-batch-done').addEventListener('click', function () {
-                        _mp.removeChild(modal);
-                        renderGrid();
-                    });
-                }
-            );
-        });
-    }
-
-    // ── API 调用核心 ───────────────────────────────────────────
-    // 统一处理 API 地址，兼容各种填法
-    function normalizeEndpoint(raw, path) {
-        // path: 'chat' | 'models'
-        var url = raw.replace(/\/+$/, '');
-        // 去掉已有的 /v1/chat/completions 或 /v1/models 后缀
-        url = url.replace(/\/v1\/chat\/completions\/?$/, '').replace(/\/v1\/models\/?$/, '');
-        // 去掉末尾的 /v1（用户可能多写了）
-        url = url.replace(/\/v1\/?$/, '');
-        if (path === 'models') return url + '/v1/models';
-        return url + '/v1/chat/completions';
-    }
-
-    // 拉取模型列表
-    function fetchModelList(apiCfg, cb) {
-        if (!apiCfg.endpoint || !apiCfg.key) { cb('请先填写 API 地址和 Key'); return; }
-        var url = normalizeEndpoint(apiCfg.endpoint, 'models');
-        fetch(url, {
-                method: 'GET',
-                headers: { 'Authorization': 'Bearer ' + apiCfg.key }
-            }).then(function (r) {
-            if (!r.ok) return r.text().then(function (t) { throw new Error('HTTP ' + r.status); });
-                return r.json();
-            }).then(function (data) {
-            var models = [];
-            var list = data.data || data.models || data;
-            if (Array.isArray(list)) {
-                list.forEach(function (m) {
-                    var id = m.id || m.name || m;
-                    if (typeof id === 'string' && id) models.push(id);
-                });
-            }
-            models.sort(function (a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); });
-            cb(null, models);
-        }).catch(function (e) { cb(e.message || String(e)); });
-    }
-
-    // 模型选择下拉弹窗
-    function openModelPicker(apiCfg, onSelect) {
-        toast('正在拉取模型列表...');
-        fetchModelList(apiCfg, function (err, models) {
-            if (err) { toast('拉取失败：' + err, true); return; }
-            if (!models || models.length === 0) { toast('未获取到模型列表', true); return; }
-            var modal = document.createElement('div');
-            modal.className = 'om-modal';
-            modal.style.cssText = 'position:absolute !important;inset:0 !important;z-index:1 !important;background:rgba(0,0,0,.45) !important;display:flex !important;align-items:center !important;justify-content:center !important;padding:20px !important;box-sizing:border-box !important;pointer-events:auto !important;';
-            var searchHtml = '<input type="text" id="om-model-search" placeholder="搜索模型..." style="width:100%;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.2);border-radius:8px;color:inherit;padding:8px 10px;font-size:.85em;box-sizing:border-box;font-family:inherit;margin-bottom:8px" />';
-            var listHtml = models.map(function (m) {
-                return '<div class="om-model-item" data-model="' + esc(m) + '" style="padding:10px 12px;cursor:pointer;border-radius:8px;font-size:.85em;transition:.12s;word-break:break-all">' + esc(m) + '</div>';
-            }).join('');
-            modal.innerHTML = '<div class="om-modal-box" style="background:' + (darkMode ? '#1e1e24' : '#ececef') + ';color:' + (darkMode ? '#eee' : '#111') + ';max-height:75vh">' +
-                '<div class="om-modal-title"><i class="fa-solid fa-list" style="margin-right:6px"></i>选择模型 <span style="font-weight:400;font-size:.75em;opacity:.5">（共 ' + models.length + ' 个）</span></div>' +
-                searchHtml +
-                '<div id="om-model-list" style="overflow-y:auto;max-height:50vh;display:flex;flex-direction:column;gap:2px">' + listHtml + '</div>' +
-                '<button class="om-modal-cancel" id="om-model-cancel">取消</button></div>';
-            var _mp = getPopupLayer();
-            _mp.appendChild(modal);
-            modal.addEventListener('click', function (e) { if (e.target === modal) _mp.removeChild(modal); });
-            modal.querySelector('#om-model-cancel').addEventListener('click', function () { _mp.removeChild(modal); });
-            // 搜索过滤
-            modal.querySelector('#om-model-search').addEventListener('input', function () {
-                var q = this.value.toLowerCase();
-                modal.querySelectorAll('.om-model-item').forEach(function (item) {
-                    item.style.display = item.dataset.model.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
-                });
-            });
-            setTimeout(function () { modal.querySelector('#om-model-search').focus(); }, 50);
-            // 选择模型
-            modal.querySelectorAll('.om-model-item').forEach(function (item) {
-                item.addEventListener('mouseenter', function () { item.style.background = 'rgba(127,127,127,.12)'; });
-                item.addEventListener('mouseleave', function () { item.style.background = ''; });
-                item.addEventListener('click', function () {
-                    _mp.removeChild(modal);
-                    onSelect(item.dataset.model);
-                    toast('✅ 已选择：' + item.dataset.model);
-                });
-            });
-        });
-    }
-
-    function callVisionAPI(apiCfg, image, systemPrompt, cb, retryCount) {
-        // image: {name, dataUrl} → 单张图片单个请求
-        retryCount = retryCount || 0;
-        var maxRetries = 4;
-        if (!apiCfg.endpoint || !apiCfg.key || !apiCfg.model) { cb('API 未配置完整'); return; }
-        var endpoint = normalizeEndpoint(apiCfg.endpoint, 'chat');
-        var content = [
-            { type: 'image_url', image_url: { url: image.dataUrl } },
-            { type: 'text', text: '请描述这套穿搭：' + image.name }
-        ];
-        var body = {
-            model: apiCfg.model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: content }
-            ],
-            max_tokens: 1024
-        };
-        try {
-            fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiCfg.key },
-                body: JSON.stringify(body)
-            }).then(function (r) {
-                if (!r.ok) { if (r.status === 429 && retryCount < maxRetries) { var delay = (retryCount + 1) * 5000; setTimeout(function () { callVisionAPI(apiCfg, image, systemPrompt, cb, retryCount + 1); }, delay); return; } return r.text().then(function (t) { cb('HTTP ' + r.status + ': ' + (t || '').substring(0, 200)); }); }
-                return r.json();
-            }).then(function (data) {
-            var text = '';
-            if (data.choices && data.choices[0]) {
-                var msg = data.choices[0].message;
-                text = msg ? (msg.content || '') : '';
-            } else if (data.candidates && data.candidates[0]) {
-                var parts = data.candidates[0].content && data.candidates[0].content.parts;
-                if (parts) text = parts.map(function (p) { return p.text || ''; }).join('');
-            }
-            cb(null, text.trim());
-            }).catch(function (e) { cb('请求失败：' + (e.message || '网络错误')); });
-        } catch (e) { cb('请求异常：' + e.message); }
-    }
-
-    function batchGenerateDescriptions(outfitIds, progressCb, doneCb) {
-        var d = load();
-        var apiCfg = d.apiVision;
-        if (!apiCfg.endpoint || !apiCfg.key || !apiCfg.model) { doneCb('请先在设置中配置"描述生成 API"'); return; }
-        var targets = [];
-        outfitIds.forEach(function (id) {
-            var o = getById(d, id);
-            if (!o || !o.imageData) return;
-            if (!apiCfg.overwrite && o.description && o.description.trim()) return;
-            targets.push(o);
-        });
-        if (targets.length === 0) { doneCb('没有需要生成描述的穿搭（可能都已有描述或无图片）'); return; }
-
-        var concurrency = Math.max(1, Math.min(5, apiCfg.concurrency || 3));
-        var done = 0; var total = targets.length; var errors = [];
-        var queue = targets.slice(); // 待处理队列
-
-        function processNext() {
-            if (queue.length === 0) return;
-            var o = queue.shift();
-            var image = { name: o.name, dataUrl: o.imageData };
-            callVisionAPI(apiCfg, image, apiCfg.prompt, function (err, text) {
-                done++;
-                if (err) {
-                    errors.push({ name: o.name, error: err });
-                } else if (text) {
-                    o.description = text;
-                } else {
-                    errors.push({ name: o.name, error: '返回内容为空' });
-                }
-                progressCb(done, total, '已完成 ' + done + '/' + total);
-                if (done >= total) {
-                    save(d);
-                    doneCb(errors.length > 0 ? '完成，但有 ' + errors.length + ' 个错误' : null, done, errors);
-                } else {
-                    processNext();
-                }
-            });
-        }
-
-        progressCb(0, total, '开始生成，并发数 ' + concurrency + '...');
-        // 启动 N 个并发
-        for (var i = 0; i < Math.min(concurrency, total); i++) {
-            processNext();
-        }
-    }
-
-    // 单个穿搭生成描述
-    function generateSingleDescription(outfit, cb) {
-        var d = load();
-        var apiCfg = d.apiVision;
-        if (!apiCfg.endpoint || !apiCfg.key || !apiCfg.model) { cb('请先在设置中配置"描述生成 API"'); return; }
-        if (!outfit.imageData) { cb('该穿搭没有图片'); return; }
-        callVisionAPI(apiCfg, { name: outfit.name, dataUrl: outfit.imageData }, apiCfg.prompt, function (err, text) {
-            if (err) { cb(err); return; }
-            cb(null, text);
-        });
-    }
-
-    // ── API 注入核心 ──────────────────────────────────────────
+    // ── 请求注入核心 ──────────────────────────────────────────
     // position: 'system' | 'context' | 'user'
     //   system  = 追加到第一条 system message 末尾（原有行为）
     //   context = 在最后一条 user message 之前插入一条 system message（类似 author's note）
@@ -3143,6 +2814,33 @@
         menu.appendChild(btn);
     }
 
+    // ── 扩展设置面板入口 ──
+    function injectSettingsEntry() {
+        if (document.getElementById('om-settings-entry')) return;
+        var container = document.getElementById('extensions_settings');
+        if (!container) { setTimeout(injectSettingsEntry, 500); return; }
+        var entry = document.createElement('div');
+        entry.id = 'om-settings-entry';
+        entry.className = 'om-settings-entry';
+        entry.innerHTML =
+            '<div class="inline-drawer-toggle inline-drawer-header">' +
+            '<b><i class="fa-solid fa-shirt"></i> ' + SCRIPT_NAME + '</b>' +
+            '<div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>' +
+            '</div>' +
+            '<div class="inline-drawer-content">' +
+            '<div class="om-settings-entry__buttons" style="display:flex;flex-direction:column;gap:6px;padding:4px 0">' +
+            '<button class="menu_button om-settings-entry__open" type="button" style="width:100%"><i class="fa-solid fa-up-right-from-square"></i> 打开衣柜</button>' +
+            '<button class="menu_button om-settings-entry__console" type="button" style="width:100%"><i class="fa-solid fa-terminal"></i> 打开控制台</button>' +
+            '</div>' +
+            '</div>';
+        entry.querySelector('.om-settings-entry__open').addEventListener('click', openPopup);
+        entry.querySelector('.om-settings-entry__console').addEventListener('click', function() {
+            // Open the console/popup with console tab
+            openPopup();
+        });
+        container.appendChild(entry);
+    }
+
     // ── 启动 ──────────────────────────────────────────────────
     injectStyles();
     setupInjection();
@@ -3150,6 +2848,8 @@
     setInterval(injectBtn, 2000);
     setTimeout(injectFab, 1500);
     setInterval(function () { if (!document.getElementById(FAB_ID)) injectFab(); }, 3000);
+    setTimeout(injectSettingsEntry, 500);
+    setInterval(function () { if (!document.getElementById('om-settings-entry')) injectSettingsEntry(); }, 3000);
 
     loadFromDB(function (d) {
         // Auto-roll: if nothing active, pick random world book style
@@ -3175,7 +2875,6 @@
             if (names.length > 0 && typeof toast !== 'undefined') setTimeout(function() { toast('今日穿搭：「' + names.join('、') + '」', false, 4000); }, 3500);
         }
         dataCache = d;
-        if (d.useMainApi !== false) autoDetectApiConfig(d);
         var lsData = loadFromLS();
         if (lsData && lsData.outfits && lsData.outfits.length > 0 && (!d.outfits || d.outfits.length === 0)) {
             dataCache = ensureDefaults(lsData);

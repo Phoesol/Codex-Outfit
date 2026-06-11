@@ -1,8 +1,8 @@
 ﻿{
-  "display_name": "穿搭管理器 | Outfit Manager",
-  "version": "21.2.0",
+  "display_name": "Codex-Outfit",
+  "version": "21.4.0",
   "author": "温水",
   "js": "index.js",
-  "description": "SillyTavern 穿搭管理插件 —— 防止AI为角色乱编服装，支持User/角色独立穿搭、衣柜模式、场景标签、文字/图片/混合注入"
+  "description": "Codex-Outfit：基于 SillyTavern 世界书的穿搭衣柜插件，支持 User/角色独立穿搭、衣柜模式、场景标签、文字/图片/混合注入"
 }
 
