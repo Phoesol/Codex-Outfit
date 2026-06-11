@@ -1,6 +1,6 @@
 {
   "display_name": "Codex-Outfit",
-  "version": "21.4.0",
+  "version": "21.5.0",
   "author": "温水",
   "js": "index.js",
   "description": "Codex-Outfit：基于 SillyTavern 世界书的穿搭衣柜插件，支持 User/角色独立穿搭、衣柜模式、场景标签、文字/图片/混合注入",
